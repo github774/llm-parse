@@ -12,8 +12,9 @@
       "types": "./dist/esm/index.d.ts"
     }
   },
+  "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && echo '{\"type\":\"commonjs\"}' > dist/cjs/package.json",
     "test": "npx tsx --test tests/index.test.ts",
     "test:build": "node --test dist/esm/index.test.js",
     "prepublishOnly": "npm test && npm run build"
