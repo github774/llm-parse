@@ -14,10 +14,21 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json",
-    "test": "node --import tsx/esm --test tests/index.test.ts",
+    "test": "npx tsx --test tests/index.test.ts",
     "test:build": "node --test dist/esm/index.test.js"
   },
-  "keywords": ["llm", "json", "parse", "validate"],
+  "keywords": [
+    "llm",
+    "json",
+    "parse",
+    "validate"
+  ],
   "license": "MIT",
-  "files": ["dist"]
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  }
 }
