@@ -1,5 +1,5 @@
 {
-  "name": "llm-parse",
+  "name": "@amars1238/llm-parse",
   "version": "0.1.0",
   "description": "Lightweight zero-dependency parser and validator for LLM JSON output",
   "main": "./dist/cjs/index.js",
@@ -15,7 +15,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json",
     "test": "npx tsx --test tests/index.test.ts",
-    "test:build": "node --test dist/esm/index.test.js"
+    "test:build": "node --test dist/esm/index.test.js",
+    "prepublishOnly": "npm test && npm run build"
   },
   "keywords": [
     "llm",

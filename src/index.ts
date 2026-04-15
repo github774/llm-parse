@@ -1,5 +1,5 @@
 // src/index.ts
-import { stripFences, extractJSON, parseJSON, ParseError } from './parse.js';
+import { parseJSON, ParseError } from './parse.js';
 import { validate } from './validate.js';
 import { coerceData } from './coerce.js';
 import type { Schema, LLMParseOptions } from './types.js';
@@ -15,9 +15,7 @@ export function llmParse(
 ): unknown {
   const { strict = false, coerce = false } = options;
 
-  const stripped = stripFences(text);
-  const extracted = extractJSON(stripped);
-  let parsed = parseJSON(extracted) as Record<string, unknown>;
+  let parsed = parseJSON(text) as Record<string, unknown>;
 
   if (schema) {
     if (coerce) {

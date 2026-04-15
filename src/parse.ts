@@ -43,12 +43,14 @@ export function extractJSON(text: string): string {
 }
 
 /**
- * Parses a JSON string, throwing ParseError on failure.
+ * Strips fences, extracts JSON from surrounding text, parses, and returns the
+ * result. Throws ParseError (with the original text in `.raw`) on failure.
  */
 export function parseJSON(text: string): unknown {
+  const cleaned = extractJSON(stripFences(text));
   try {
-    return JSON.parse(text);
+    return JSON.parse(cleaned);
   } catch {
-    throw new ParseError(`Failed to parse JSON: ${text.slice(0, 80)}`, text);
+    throw new ParseError(`Failed to parse JSON: ${cleaned.slice(0, 80)}`, text);
   }
 }

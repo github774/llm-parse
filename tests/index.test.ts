@@ -7,171 +7,392 @@ import { coerceData } from '../src/coerce.ts';
 import type { Schema } from '../src/types.ts';
 import llmParse, { llmParse as namedLlmParse } from '../src/index.ts';
 
+// ---------------------------------------------------------------------------
+// stripFences
+// ---------------------------------------------------------------------------
+
 describe('stripFences', () => {
   it('strips ```json ... ``` fences', () => {
-    const input = '```json\n{"a":1}\n```';
-    assert.equal(stripFences(input), '{"a":1}');
+    assert.equal(stripFences('```json\n{"a":1}\n```'), '{"a":1}');
   });
 
   it('strips plain ``` fences', () => {
     assert.equal(stripFences('```\n{"a":1}\n```'), '{"a":1}');
   });
 
-  it('strips fences with extra whitespace', () => {
+  it('strips fences with extra whitespace around the tag', () => {
     assert.equal(stripFences('  ```json  \n{"a":1}\n```  '), '{"a":1}');
   });
 
-  it('returns unchanged string when no fences', () => {
-    assert.equal(stripFences('{"a":1}'), '{"a":1}');
+  it('strips fences with trailing newline inside', () => {
+    assert.equal(stripFences('```json\n{"a":1}\n\n```'), '{"a":1}');
+  });
+
+  it('returns trimmed string when no fences present', () => {
+    assert.equal(stripFences('  {"a":1}  '), '{"a":1}');
+  });
+
+  it('preserves content that contains backticks but is not a fence', () => {
+    const s = 'use `x` here';
+    assert.equal(stripFences(s), s);
   });
 });
 
+// ---------------------------------------------------------------------------
+// extractJSON
+// ---------------------------------------------------------------------------
+
 describe('extractJSON', () => {
-  it('extracts JSON buried after explanation text', () => {
-    const input = 'Sure, here is the result:\n{"name":"Alice"}';
-    assert.equal(extractJSON(input), '{"name":"Alice"}');
+  it('extracts object buried after explanation text', () => {
+    assert.equal(
+      extractJSON('Sure, here is the result:\n{"name":"Alice"}'),
+      '{"name":"Alice"}',
+    );
   });
 
-  it('extracts JSON before a closing sentence', () => {
-    const input = '{"ok":true}\nHope that helps!';
-    assert.equal(extractJSON(input), '{"ok":true}');
+  it('extracts object with trailing sentence', () => {
+    assert.equal(
+      extractJSON('{"ok":true}\nHope that helps!'),
+      '{"ok":true}',
+    );
+  });
+
+  it('extracts object surrounded by text on both sides', () => {
+    assert.equal(
+      extractJSON('Here you go: {"x":1} — enjoy!'),
+      '{"x":1}',
+    );
   });
 
   it('extracts JSON array', () => {
-    const input = 'Here: [1,2,3]';
-    assert.equal(extractJSON(input), '[1,2,3]');
+    assert.equal(extractJSON('Here: [1,2,3]'), '[1,2,3]');
   });
 
-  it('returns the string unchanged when it is already JSON', () => {
+  it('prefers object when { appears before [', () => {
+    // firstBrace < firstBracket → slices from { to last }, ignoring the array
+    assert.equal(extractJSON('{"a":1} and [1,2]'), '{"a":1}');
+    assert.equal(extractJSON('Result: {"a":1} done.'), '{"a":1}');
+  });
+
+  it('returns trimmed input when no brackets found', () => {
+    assert.equal(extractJSON('  no json here  '), 'no json here');
+  });
+
+  it('returns input unchanged when it is already a JSON object', () => {
     assert.equal(extractJSON('{"a":1}'), '{"a":1}');
   });
 });
 
+// ---------------------------------------------------------------------------
+// parseJSON — including malformed JSON cases
+// ---------------------------------------------------------------------------
+
 describe('parseJSON', () => {
-  it('parses valid JSON', () => {
+  it('parses a valid JSON object', () => {
     assert.deepEqual(parseJSON('{"a":1}'), { a: 1 });
   });
 
-  it('throws ParseError on invalid JSON', () => {
-    assert.throws(() => parseJSON('not json'), ParseError);
+  it('parses fenced JSON end-to-end', () => {
+    assert.deepEqual(parseJSON('```json\n{"ok":true}\n```'), { ok: true });
   });
 
-  it('ParseError has raw field', () => {
+  it('parses JSON buried in explanation text', () => {
+    assert.deepEqual(
+      parseJSON('Here is the answer:\n{"score":99}\nDone.'),
+      { score: 99 },
+    );
+  });
+
+  it('throws ParseError (not generic Error) for completely invalid input', () => {
+    assert.throws(() => parseJSON('not json at all'), ParseError);
+  });
+
+  it('throws ParseError for truncated JSON', () => {
+    assert.throws(() => parseJSON('{"name":"Alice"'), ParseError);
+  });
+
+  it('throws ParseError for trailing comma (invalid JSON)', () => {
+    assert.throws(() => parseJSON('{"a":1,}'), ParseError);
+  });
+
+  it('ParseError.raw holds the original pre-clean input', () => {
+    try {
+      parseJSON('garbage');
+      assert.fail('should have thrown');
+    } catch (e) {
+      assert.ok(e instanceof ParseError);
+      assert.equal((e as ParseError).raw, 'garbage');
+    }
+  });
+
+  it('ParseError.raw holds original text even when fenced', () => {
+    const input = '```json\n{bad}\n```';
+    try {
+      parseJSON(input);
+      assert.fail('should have thrown');
+    } catch (e) {
+      assert.ok(e instanceof ParseError);
+      assert.equal((e as ParseError).raw, input);
+    }
+  });
+
+  it('ParseError.name is "ParseError"', () => {
     try {
       parseJSON('bad');
     } catch (e) {
-      assert.ok(e instanceof ParseError);
-      assert.equal((e as ParseError).raw, 'bad');
+      assert.equal((e as ParseError).name, 'ParseError');
     }
   });
 });
 
+// ---------------------------------------------------------------------------
+// validate — schema pass / fail
+// ---------------------------------------------------------------------------
+
 describe('validate', () => {
-  it('returns valid:true for matching schema', () => {
+  it('passes when all fields match schema', () => {
     const schema: Schema = { name: { type: 'string' }, age: { type: 'number' } };
-    const result = validate(schema, { name: 'Alice', age: 30 });
-    assert.deepEqual(result, { valid: true, errors: [] });
+    assert.deepEqual(validate(schema, { name: 'Alice', age: 30 }), { valid: true, errors: [] });
   });
 
-  it('returns errors for wrong types', () => {
+  it('fails with error message naming the field when type is wrong', () => {
     const schema: Schema = { name: { type: 'string' } };
     const result = validate(schema, { name: 123 });
     assert.equal(result.valid, false);
     assert.ok(result.errors[0].includes('name'));
   });
 
-  it('returns errors for missing required fields', () => {
+  it('fails for missing required field', () => {
     const schema: Schema = { name: { type: 'string', required: true } };
     const result = validate(schema, {});
     assert.equal(result.valid, false);
     assert.ok(result.errors[0].includes('name'));
   });
 
-  it('validates array type', () => {
+  it('passes when optional field is absent', () => {
+    const schema: Schema = { name: { type: 'string' } };
+    assert.deepEqual(validate(schema, {}), { valid: true, errors: [] });
+  });
+
+  it('accumulates errors for multiple bad fields', () => {
+    const schema: Schema = {
+      name: { type: 'string', required: true },
+      age: { type: 'number', required: true },
+    };
+    const result = validate(schema, {});
+    assert.equal(result.valid, false);
+    assert.equal(result.errors.length, 2);
+  });
+
+  it('validates array type — array passes, string fails', () => {
     const schema: Schema = { tags: { type: 'array' } };
-    assert.deepEqual(validate(schema, { tags: [1, 2] }), { valid: true, errors: [] });
+    assert.equal(validate(schema, { tags: [1, 2] }).valid, true);
     assert.equal(validate(schema, { tags: 'oops' }).valid, false);
   });
 
-  it('validates object type', () => {
+  it('validates object type — plain object passes, array fails', () => {
     const schema: Schema = { meta: { type: 'object' } };
-    assert.deepEqual(validate(schema, { meta: {} }), { valid: true, errors: [] });
-    assert.equal(validate(schema, { meta: [] }).valid, false);
+    assert.equal(validate(schema, { meta: {} }).valid, true);
+    assert.equal(validate(schema, { meta: [] }).valid, false); // array is not object
   });
 
-  it('never throws', () => {
-    assert.doesNotThrow(() => validate({} as Schema, null as unknown as Record<string, unknown>));
+  it('validates boolean type', () => {
+    const schema: Schema = { active: { type: 'boolean' } };
+    assert.equal(validate(schema, { active: true }).valid, true);
+    assert.equal(validate(schema, { active: 'yes' }).valid, false);
+  });
+
+  it('ignores extra keys not in schema', () => {
+    const schema: Schema = { name: { type: 'string' } };
+    assert.equal(validate(schema, { name: 'Alice', extra: 99 }).valid, true);
+  });
+
+  it('never throws — even with null data', () => {
+    assert.doesNotThrow(() =>
+      validate({} as Schema, null as unknown as Record<string, unknown>),
+    );
   });
 });
 
+// ---------------------------------------------------------------------------
+// coercion
+// ---------------------------------------------------------------------------
+
 describe('coerceData', () => {
-  it('coerces "42" to number when schema expects number', () => {
+  it('coerces "42" → 42 when schema expects number', () => {
     const schema: Schema = { age: { type: 'number' } };
-    const result = coerceData(schema, { age: '42' });
-    assert.equal(result.age, 42);
+    assert.equal(coerceData(schema, { age: '42' }).age, 42);
   });
 
-  it('coerces "true"/"false" to boolean', () => {
+  it('coerces "3.14" → 3.14', () => {
+    const schema: Schema = { pi: { type: 'number' } };
+    assert.equal(coerceData(schema, { pi: '3.14' }).pi, 3.14);
+  });
+
+  it('coerces "true" → true and "false" → false', () => {
     const schema: Schema = { active: { type: 'boolean' } };
     assert.equal(coerceData(schema, { active: 'true' }).active, true);
     assert.equal(coerceData(schema, { active: 'false' }).active, false);
   });
 
-  it('does not drop unrecognised keys', () => {
+  it('does not coerce ambiguous string to number', () => {
+    const schema: Schema = { age: { type: 'number' } };
+    assert.equal(coerceData(schema, { age: 'not-a-number' }).age, 'not-a-number');
+  });
+
+  it('does not coerce non-string values', () => {
+    const schema: Schema = { count: { type: 'number' } };
+    assert.equal(coerceData(schema, { count: 5 }).count, 5); // already a number
+  });
+
+  it('preserves keys not in schema', () => {
     const schema: Schema = { age: { type: 'number' } };
     const result = coerceData(schema, { age: '5', extra: 'keep' });
     assert.ok('extra' in result);
+    assert.equal(result.extra, 'keep');
   });
 
-  it('does not coerce ambiguous strings', () => {
+  it('does not mutate the original data object', () => {
     const schema: Schema = { age: { type: 'number' } };
-    const result = coerceData(schema, { age: 'not-a-number' });
-    assert.equal(result.age, 'not-a-number');
+    const data = { age: '42' };
+    coerceData(schema, data);
+    assert.equal(data.age, '42'); // unchanged
   });
 });
 
+// ---------------------------------------------------------------------------
+// llmParse — integration (all options combined)
+// ---------------------------------------------------------------------------
+
 describe('llmParse', () => {
+  // --- fenced JSON ---
+
   it('parses clean JSON string', () => {
-    const result = llmParse('{"name":"Alice","age":30}');
-    assert.deepEqual(result, { name: 'Alice', age: 30 });
+    assert.deepEqual(llmParse('{"name":"Alice","age":30}'), { name: 'Alice', age: 30 });
   });
 
-  it('strips fences before parsing', () => {
-    const result = llmParse('```json\n{"ok":true}\n```');
-    assert.deepEqual(result, { ok: true });
+  it('strips ```json fences', () => {
+    assert.deepEqual(llmParse('```json\n{"ok":true}\n```'), { ok: true });
   });
 
-  it('extracts JSON from padded text', () => {
-    const result = llmParse('Here you go:\n{"x":1}\nDone.');
-    assert.deepEqual(result, { x: 1 });
+  it('strips plain ``` fences', () => {
+    assert.deepEqual(llmParse('```\n{"ok":true}\n```'), { ok: true });
   });
 
-  it('validates with schema and returns data on success', () => {
+  // --- JSON buried in text ---
+
+  it('extracts JSON from preamble text', () => {
+    assert.deepEqual(llmParse('Here you go:\n{"x":1}\nDone.'), { x: 1 });
+  });
+
+  it('handles fenced JSON with surrounding prose', () => {
+    assert.deepEqual(
+      llmParse('Sure:\n```json\n{"y":2}\n```\nHope that helps!'),
+      { y: 2 },
+    );
+  });
+
+  // --- malformed JSON ---
+
+  it('throws ParseError for garbage input', () => {
+    assert.throws(() => llmParse('not json'), ParseError);
+  });
+
+  it('throws ParseError for truncated JSON', () => {
+    assert.throws(() => llmParse('{"name":"Alice"'), ParseError);
+  });
+
+  it('ParseError.raw holds the original unmodified text', () => {
+    const input = '```json\n{bad}\n```';
+    try {
+      llmParse(input);
+      assert.fail('should have thrown');
+    } catch (e) {
+      assert.ok(e instanceof ParseError);
+      assert.equal((e as ParseError).raw, input);
+    }
+  });
+
+  // --- schema validation ---
+
+  it('returns data unchanged when schema passes', () => {
     const schema: Schema = { name: { type: 'string' } };
-    const result = llmParse('{"name":"Bob"}', schema);
-    assert.deepEqual(result, { name: 'Bob' });
+    assert.deepEqual(llmParse('{"name":"Bob"}', schema), { name: 'Bob' });
   });
 
-  it('does not throw on validation failure in non-strict mode', () => {
+  it('does not throw on validation failure in non-strict mode (default)', () => {
     const schema: Schema = { name: { type: 'number' } };
     assert.doesNotThrow(() => llmParse('{"name":"Bob"}', schema));
   });
 
-  it('throws ParseError on validation failure in strict mode', () => {
-    const schema: Schema = { name: { type: 'number', required: true } };
+  // --- strict mode ---
+
+  it('throws ParseError in strict mode when required field is missing', () => {
+    const schema: Schema = { name: { type: 'string', required: true } };
     assert.throws(
-      () => llmParse('{"name":"Bob"}', schema, { strict: true }),
-      ParseError
+      () => llmParse('{}', schema, { strict: true }),
+      ParseError,
     );
   });
 
-  it('coerces when coerce:true', () => {
+  it('throws ParseError in strict mode when type is wrong', () => {
+    const schema: Schema = { name: { type: 'number', required: true } };
+    assert.throws(
+      () => llmParse('{"name":"Bob"}', schema, { strict: true }),
+      ParseError,
+    );
+  });
+
+  it('strict mode error message contains the validation failure detail', () => {
+    const schema: Schema = { name: { type: 'number', required: true } };
+    try {
+      llmParse('{"name":"Bob"}', schema, { strict: true });
+      assert.fail('should have thrown');
+    } catch (e) {
+      assert.ok(e instanceof ParseError);
+      assert.ok((e as ParseError).message.includes('name'));
+    }
+  });
+
+  it('does not throw in strict mode when validation passes', () => {
+    const schema: Schema = { name: { type: 'string', required: true } };
+    assert.doesNotThrow(() =>
+      llmParse('{"name":"Alice"}', schema, { strict: true }),
+    );
+  });
+
+  // --- coercion ---
+
+  it('coerces string to number when coerce:true', () => {
     const schema: Schema = { age: { type: 'number' } };
     const result = llmParse('{"age":"42"}', schema, { coerce: true }) as Record<string, unknown>;
     assert.equal(result.age, 42);
   });
 
-  it('is exported as named and default', () => {
+  it('coerces string to boolean when coerce:true', () => {
+    const schema: Schema = { active: { type: 'boolean' } };
+    const result = llmParse('{"active":"true"}', schema, { coerce: true }) as Record<string, unknown>;
+    assert.equal(result.active, true);
+  });
+
+  it('coerce + strict: passes after successful coercion', () => {
+    const schema: Schema = { score: { type: 'number', required: true } };
+    assert.doesNotThrow(() =>
+      llmParse('{"score":"99"}', schema, { coerce: true, strict: true }),
+    );
+  });
+
+  it('coerce + strict: throws when coercion cannot fix the type', () => {
+    const schema: Schema = { score: { type: 'number', required: true } };
+    assert.throws(
+      () => llmParse('{"score":"not-a-number"}', schema, { coerce: true, strict: true }),
+      ParseError,
+    );
+  });
+
+  // --- exports ---
+
+  it('is exported as both named and default', () => {
     assert.equal(typeof llmParse, 'function');
     assert.equal(typeof namedLlmParse, 'function');
   });
