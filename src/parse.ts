@@ -19,27 +19,43 @@ export function stripFences(text: string): string {
 }
 
 /**
- * Finds the first { or [ character and the last matching } or ] and returns
- * the substring. Falls back to the trimmed input if no bracket pair found.
+ * Finds the first { or [ and walks forward tracking bracket depth to locate
+ * the correct matching close. Ignores brackets inside strings.
+ * Falls back to the trimmed input if no valid bracket pair is found.
  */
 export function extractJSON(text: string): string {
   const firstBrace = text.indexOf('{');
   const firstBracket = text.indexOf('[');
 
-  let start = -1;
-  let closing: string;
+  let openChar: string;
+  let closeChar: string;
+  let start: number;
 
   if (firstBrace === -1 && firstBracket === -1) return text.trim();
 
-  if (firstBrace === -1) { start = firstBracket; closing = ']'; }
-  else if (firstBracket === -1) { start = firstBrace; closing = '}'; }
-  else if (firstBrace < firstBracket) { start = firstBrace; closing = '}'; }
-  else { start = firstBracket; closing = ']'; }
+  if (firstBrace === -1) { start = firstBracket; openChar = '['; closeChar = ']'; }
+  else if (firstBracket === -1) { start = firstBrace; openChar = '{'; closeChar = '}'; }
+  else if (firstBrace < firstBracket) { start = firstBrace; openChar = '{'; closeChar = '}'; }
+  else { start = firstBracket; openChar = '['; closeChar = ']'; }
 
-  const end = text.lastIndexOf(closing);
-  if (end === -1 || end < start) return text.trim();
+  let depth = 0;
+  let inString = false;
+  let escape = false;
 
-  return text.slice(start, end + 1).trim();
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\' && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === openChar) depth++;
+    if (ch === closeChar) {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1).trim();
+    }
+  }
+
+  return text.trim();
 }
 
 /**

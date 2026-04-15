@@ -22,7 +22,7 @@ export function validate(schema: Schema, data: Record<string, unknown>): Validat
   try {
     for (const [key, field] of Object.entries(schema)) {
       const value = data?.[key];
-      const missing = value === undefined || value === null;
+      const missing = value === undefined;
 
       if (missing) {
         if (field.required) errors.push(`"${key}" is required`);
@@ -34,7 +34,7 @@ export function validate(schema: Schema, data: Record<string, unknown>): Validat
       }
     }
   } catch {
-    // never throw
+    errors.push('Internal validation error');
   }
 
   return { valid: errors.length === 0, errors };

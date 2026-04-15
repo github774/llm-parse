@@ -78,6 +78,15 @@ describe('extractJSON', () => {
     assert.equal(extractJSON('  no json here  '), 'no json here');
   });
 
+  it('stops at the correct closing bracket, ignoring stray ones after', () => {
+    // lastIndexOf would have grabbed the trailing }, depth-tracking stops at the right one
+    assert.equal(extractJSON('{"a":1} some text }'), '{"a":1}');
+  });
+
+  it('handles brackets inside string values correctly', () => {
+    assert.equal(extractJSON('{"key":"val}ue"}'), '{"key":"val}ue"}');
+  });
+
   it('returns input unchanged when it is already a JSON object', () => {
     assert.equal(extractJSON('{"a":1}'), '{"a":1}');
   });
@@ -211,6 +220,14 @@ describe('validate', () => {
     assert.doesNotThrow(() =>
       validate({} as Schema, null as unknown as Record<string, unknown>),
     );
+  });
+
+  it('null value fails type check rather than being silently skipped', () => {
+    const schema: Schema = { meta: { type: 'object' } };
+    // null is present in data but is not a valid object
+    const result = validate(schema, { meta: null } as unknown as Record<string, unknown>);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors[0].includes('meta'));
   });
 });
 

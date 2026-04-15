@@ -27,7 +27,7 @@ Models like GPT-4 and Claude habitually wrap JSON in markdown code blocks.
 `llmParse` strips the fences before parsing.
 
 ```typescript
-import llmParse from 'llm-parse';
+import llmParse from '@amars1238/llm-parse';
 
 const raw = `
 Sure! Here is the JSON you asked for:
@@ -50,7 +50,7 @@ Pass a schema to validate field types and required fields. In non-strict mode
 (the default), validation errors are available without throwing.
 
 ```typescript
-import llmParse, { validate, ParseError } from 'llm-parse';
+import llmParse, { validate, ParseError } from '@amars1238/llm-parse';
 import type { Schema } from 'llm-parse';
 
 const schema: Schema = {
@@ -138,7 +138,7 @@ llmParse(text: string, schema?: Schema, options?: LLMParseOptions): unknown
 | `text` | `string` | — | Raw LLM output |
 | `schema` | `Schema` | `undefined` | Field type constraints |
 | `options.strict` | `boolean` | `false` | Throw `ParseError` on validation failure |
-| `options.coerce` | `boolean` | `false` | Cast `"42"` → `42`, `"true"` → `true` |
+| `options.coerce` | `boolean` | `false` | Cast `"42"` → `42`, `"true"` → `true` (strings only — non-string values are left unchanged) |
 
 Returns `unknown`. Cast to your type after validation.
 
