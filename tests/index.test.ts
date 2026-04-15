@@ -2,6 +2,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { stripFences, extractJSON, parseJSON, ParseError } from '../src/parse.ts';
+import { validate } from '../src/validate.ts';
+import type { Schema } from '../src/types.ts';
 
 describe('stripFences', () => {
   it('strips ```json ... ``` fences', () => {
@@ -59,5 +61,43 @@ describe('parseJSON', () => {
       assert.ok(e instanceof ParseError);
       assert.equal((e as ParseError).raw, 'bad');
     }
+  });
+});
+
+describe('validate', () => {
+  it('returns valid:true for matching schema', () => {
+    const schema: Schema = { name: { type: 'string' }, age: { type: 'number' } };
+    const result = validate(schema, { name: 'Alice', age: 30 });
+    assert.deepEqual(result, { valid: true, errors: [] });
+  });
+
+  it('returns errors for wrong types', () => {
+    const schema: Schema = { name: { type: 'string' } };
+    const result = validate(schema, { name: 123 });
+    assert.equal(result.valid, false);
+    assert.ok(result.errors[0].includes('name'));
+  });
+
+  it('returns errors for missing required fields', () => {
+    const schema: Schema = { name: { type: 'string', required: true } };
+    const result = validate(schema, {});
+    assert.equal(result.valid, false);
+    assert.ok(result.errors[0].includes('name'));
+  });
+
+  it('validates array type', () => {
+    const schema: Schema = { tags: { type: 'array' } };
+    assert.deepEqual(validate(schema, { tags: [1, 2] }), { valid: true, errors: [] });
+    assert.equal(validate(schema, { tags: 'oops' }).valid, false);
+  });
+
+  it('validates object type', () => {
+    const schema: Schema = { meta: { type: 'object' } };
+    assert.deepEqual(validate(schema, { meta: {} }), { valid: true, errors: [] });
+    assert.equal(validate(schema, { meta: [] }).valid, false);
+  });
+
+  it('never throws', () => {
+    assert.doesNotThrow(() => validate({} as Schema, null as unknown as Record<string, unknown>));
   });
 });
