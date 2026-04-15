@@ -1,5 +1,5 @@
 // src/coerce.ts
-import type { Schema } from './types.ts';
+import type { Schema } from './types.js';
 
 /**
  * Attempts type coercion on data fields where schema type mismatches.

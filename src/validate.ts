@@ -1,5 +1,5 @@
 // src/validate.ts
-import type { Schema, ValidationResult, SchemaType } from './types.ts';
+import type { Schema, ValidationResult, SchemaType } from './types.js';
 
 function getActualType(value: unknown): SchemaType {
   if (Array.isArray(value)) return 'array';

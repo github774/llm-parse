@@ -1,12 +1,12 @@
 // src/index.ts
-import { stripFences, extractJSON, parseJSON, ParseError } from './parse.ts';
-import { validate } from './validate.ts';
-import { coerceData } from './coerce.ts';
-import type { Schema, LLMParseOptions } from './types.ts';
+import { stripFences, extractJSON, parseJSON, ParseError } from './parse.js';
+import { validate } from './validate.js';
+import { coerceData } from './coerce.js';
+import type { Schema, LLMParseOptions } from './types.js';
 
-export { ParseError } from './parse.ts';
-export { validate } from './validate.ts';
-export type { Schema, LLMParseOptions, ValidationResult, SchemaField, SchemaType } from './types.ts';
+export { ParseError } from './parse.js';
+export { validate } from './validate.js';
+export type { Schema, LLMParseOptions, ValidationResult, SchemaField, SchemaType } from './types.js';
 
 export function llmParse(
   text: string,
