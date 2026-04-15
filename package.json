@@ -1,0 +1,23 @@
+{
+  "name": "llm-parse",
+  "version": "0.1.0",
+  "description": "Lightweight zero-dependency parser and validator for LLM JSON output",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/esm/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json",
+    "test": "node --import tsx/esm --test tests/index.test.ts",
+    "test:build": "node --test dist/esm/index.test.js"
+  },
+  "keywords": ["llm", "json", "parse", "validate"],
+  "license": "MIT",
+  "files": ["dist"]
+}
