@@ -28,6 +28,21 @@ describe('stripFences', () => {
     assert.equal(stripFences('```json\n{"a":1}\n\n```'), '{"a":1}');
   });
 
+  it('strips fences with non-json language tags (typescript, javascript, etc.)', () => {
+    assert.equal(stripFences('```typescript\n{"a":1}\n```'), '{"a":1}');
+    assert.equal(stripFences('```javascript\n{"a":1}\n```'), '{"a":1}');
+    assert.equal(stripFences('```python\n{"a":1}\n```'), '{"a":1}');
+  });
+
+  it('strips fences with CRLF line endings', () => {
+    assert.equal(stripFences('```json\r\n{"a":1}\r\n```'), '{"a":1}');
+  });
+
+  it('returns unclosed fence unchanged', () => {
+    const s = '```json\n{"a":1}';
+    assert.equal(stripFences(s), s);
+  });
+
   it('returns trimmed string when no fences present', () => {
     assert.equal(stripFences('  {"a":1}  '), '{"a":1}');
   });
@@ -85,6 +100,26 @@ describe('extractJSON', () => {
 
   it('handles brackets inside string values correctly', () => {
     assert.equal(extractJSON('{"key":"val}ue"}'), '{"key":"val}ue"}');
+  });
+
+  it('handles escaped quotes inside string values', () => {
+    assert.equal(extractJSON('{"k":"say \\"hi\\""}'), '{"k":"say \\"hi\\""}');
+  });
+
+  it('handles escaped backslashes inside string values', () => {
+    assert.equal(extractJSON('{"p":"C:\\\\file"}'), '{"p":"C:\\\\file"}');
+  });
+
+  it('handles array of objects', () => {
+    assert.equal(extractJSON('[{"a":1},{"b":2}]'), '[{"a":1},{"b":2}]');
+  });
+
+  it('handles empty object', () => {
+    assert.equal(extractJSON('{}'), '{}');
+  });
+
+  it('handles empty array', () => {
+    assert.equal(extractJSON('[]'), '[]');
   });
 
   it('returns input unchanged when it is already a JSON object', () => {
@@ -274,6 +309,32 @@ describe('coerceData', () => {
     const data = { age: '42' };
     coerceData(schema, data);
     assert.equal(data.age, '42'); // unchanged
+  });
+
+  it('does not coerce empty string to 0', () => {
+    const schema: Schema = { n: { type: 'number' } };
+    assert.equal(coerceData(schema, { n: '' }).n, '');
+  });
+
+  it('does not coerce whitespace-only string to 0', () => {
+    const schema: Schema = { n: { type: 'number' } };
+    assert.equal(coerceData(schema, { n: '   ' }).n, '   ');
+  });
+
+  it('does not coerce "Infinity" to Infinity (not a valid JSON number)', () => {
+    const schema: Schema = { n: { type: 'number' } };
+    assert.equal(coerceData(schema, { n: 'Infinity' }).n, 'Infinity');
+  });
+
+  it('does not coerce "-Infinity" (not a valid JSON number)', () => {
+    const schema: Schema = { n: { type: 'number' } };
+    assert.equal(coerceData(schema, { n: '-Infinity' }).n, '-Infinity');
+  });
+
+  it('does coerce "0" and negative number strings correctly', () => {
+    const schema: Schema = { n: { type: 'number' } };
+    assert.equal(coerceData(schema, { n: '0' }).n, 0);
+    assert.equal(coerceData(schema, { n: '-1' }).n, -1);
   });
 });
 

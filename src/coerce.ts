@@ -16,8 +16,10 @@ export function coerceData(
     if (typeof value !== 'string') continue; // only coerce from strings
 
     if (field.type === 'number') {
-      const n = Number(value);
-      if (!Number.isNaN(n)) result[key] = n;
+      const trimmed = value.trim();
+      if (trimmed === '') continue; // "" and whitespace-only must not become 0
+      const n = Number(trimmed);
+      if (!Number.isNaN(n) && Number.isFinite(n)) result[key] = n; // exclude Infinity/-Infinity
     } else if (field.type === 'boolean') {
       if (value === 'true') result[key] = true;
       else if (value === 'false') result[key] = false;

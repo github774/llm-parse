@@ -13,7 +13,7 @@ export class ParseError extends Error {
  * Removes markdown code fences (```json ... ``` or ``` ... ```) from a string.
  */
 export function stripFences(text: string): string {
-  const fencePattern = /^\s*```(?:json)?\s*\r?\n?([\s\S]*?)\n?\s*```\s*$/;
+  const fencePattern = /^\s*```(?:\w+)?\s*\r?\n?([\s\S]*?)\n?\s*```\s*$/;
   const match = text.match(fencePattern);
   return match ? match[1].trim() : text.trim();
 }
