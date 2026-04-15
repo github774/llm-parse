@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { stripFences, extractJSON, parseJSON, ParseError } from '../src/parse.ts';
 import { validate } from '../src/validate.ts';
+import { coerceData } from '../src/coerce.ts';
 import type { Schema } from '../src/types.ts';
 
 describe('stripFences', () => {
@@ -99,5 +100,31 @@ describe('validate', () => {
 
   it('never throws', () => {
     assert.doesNotThrow(() => validate({} as Schema, null as unknown as Record<string, unknown>));
+  });
+});
+
+describe('coerceData', () => {
+  it('coerces "42" to number when schema expects number', () => {
+    const schema: Schema = { age: { type: 'number' } };
+    const result = coerceData(schema, { age: '42' });
+    assert.equal(result.age, 42);
+  });
+
+  it('coerces "true"/"false" to boolean', () => {
+    const schema: Schema = { active: { type: 'boolean' } };
+    assert.equal(coerceData(schema, { active: 'true' }).active, true);
+    assert.equal(coerceData(schema, { active: 'false' }).active, false);
+  });
+
+  it('does not drop unrecognised keys', () => {
+    const schema: Schema = { age: { type: 'number' } };
+    const result = coerceData(schema, { age: '5', extra: 'keep' });
+    assert.ok('extra' in result);
+  });
+
+  it('does not coerce ambiguous strings', () => {
+    const schema: Schema = { age: { type: 'number' } };
+    const result = coerceData(schema, { age: 'not-a-number' });
+    assert.equal(result.age, 'not-a-number');
   });
 });
