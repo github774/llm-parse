@@ -1,6 +1,6 @@
 {
   "name": "@amars1238/llm-parse",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Lightweight zero-dependency parser and validator for LLM JSON output",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
