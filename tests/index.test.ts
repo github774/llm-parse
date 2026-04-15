@@ -5,6 +5,7 @@ import { stripFences, extractJSON, parseJSON, ParseError } from '../src/parse.ts
 import { validate } from '../src/validate.ts';
 import { coerceData } from '../src/coerce.ts';
 import type { Schema } from '../src/types.ts';
+import llmParse, { llmParse as namedLlmParse } from '../src/index.ts';
 
 describe('stripFences', () => {
   it('strips ```json ... ``` fences', () => {
@@ -126,5 +127,52 @@ describe('coerceData', () => {
     const schema: Schema = { age: { type: 'number' } };
     const result = coerceData(schema, { age: 'not-a-number' });
     assert.equal(result.age, 'not-a-number');
+  });
+});
+
+describe('llmParse', () => {
+  it('parses clean JSON string', () => {
+    const result = llmParse('{"name":"Alice","age":30}');
+    assert.deepEqual(result, { name: 'Alice', age: 30 });
+  });
+
+  it('strips fences before parsing', () => {
+    const result = llmParse('```json\n{"ok":true}\n```');
+    assert.deepEqual(result, { ok: true });
+  });
+
+  it('extracts JSON from padded text', () => {
+    const result = llmParse('Here you go:\n{"x":1}\nDone.');
+    assert.deepEqual(result, { x: 1 });
+  });
+
+  it('validates with schema and returns data on success', () => {
+    const schema: Schema = { name: { type: 'string' } };
+    const result = llmParse('{"name":"Bob"}', schema);
+    assert.deepEqual(result, { name: 'Bob' });
+  });
+
+  it('does not throw on validation failure in non-strict mode', () => {
+    const schema: Schema = { name: { type: 'number' } };
+    assert.doesNotThrow(() => llmParse('{"name":"Bob"}', schema));
+  });
+
+  it('throws ParseError on validation failure in strict mode', () => {
+    const schema: Schema = { name: { type: 'number', required: true } };
+    assert.throws(
+      () => llmParse('{"name":"Bob"}', schema, { strict: true }),
+      ParseError
+    );
+  });
+
+  it('coerces when coerce:true', () => {
+    const schema: Schema = { age: { type: 'number' } };
+    const result = llmParse('{"age":"42"}', schema, { coerce: true }) as Record<string, unknown>;
+    assert.equal(result.age, 42);
+  });
+
+  it('is exported as named and default', () => {
+    assert.equal(typeof llmParse, 'function');
+    assert.equal(typeof namedLlmParse, 'function');
   });
 });
